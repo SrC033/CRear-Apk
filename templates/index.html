@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Compilador APK - Analizador de Permisos</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f3f6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 750px;
+        }
+        h2 { color: #2c3e50; margin-top: 0; text-align: center; }
+        .subtitle { color: #7f8c8d; font-size: 13px; text-align: center; margin-bottom: 20px; }
+        
+        .input-group {
+            margin-top: 12px;
+            text-align: left;
+        }
+        .input-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: bold;
+            color: #34495e;
+            margin-bottom: 4px;
+        }
+        .input-group input[type="text"], .input-group input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #bdc3c7;
+            border-radius: 6px;
+            font-size: 14px;
+            background: #fafafa;
+        }
+
+        #drop-zone {
+            border: 2px dashed #3498db;
+            border-radius: 10px;
+            padding: 20px;
+            background-color: #f0f8ff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 10px;
+            text-align: center;
+        }
+        #drop-zone.hover { background-color: #d6eaf8; border-color: #2980b9; }
+        #drop-zone p { font-size: 14px; color: #3498db; font-weight: bold; margin: 0; }
+        
+        .analisis-badge {
+            display: inline-block;
+            padding: 2px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 8px;
+        }
+        .analisis-badge.ok { background: #d5f5e3; color: #27ae60; }
+        .analisis-badge.info { background: #d6eaf8; color: #2980b9; }
+        .analisis-badge.warning { background: #fdebd0; color: #e67e22; }
+        .analisis-badge.error { background: #fadbd8; color: #c0392b; }
+
+        .permisos-section {
+            margin-top: 15px;
+            border-top: 1px solid #ecf0f1;
+            padding-top: 15px;
+        }
+        .permisos-section .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .permisos-section .header h3 {
+            color: #2c3e50;
+            font-size: 14px;
+            margin: 0;
+        }
+        .permisos-section .header .contador {
+            font-size: 12px;
+            color: #7f8c8d;
+            background: #ecf0f1;
+            padding: 2px 10px;
+            border-radius: 20px;
+        }
+        .permisos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 5px;
+            border: 1px solid #ecf0f1;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+        .permisos-grid::-webkit-scrollbar { width: 4px; }
+        .permisos-grid::-webkit-scrollbar-thumb { background: #bdc3c7; border-radius: 4px; }
+        
+        .permiso-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            padding: 3px 6px;
+            border-radius: 4px;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        .permiso-item:hover { background: #ecf0f1; }
+        .permiso-item input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+            accent-color: #3498db;
+            flex-shrink: 0;
+        }
+        .permiso-item label {
+            cursor: pointer;
+            color: #2c3e50;
+            font-size: 11px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .permiso-item .categoria-badge {
+            font-size: 8px;
+            padding: 1px 6px;
+            border-radius: 10px;
+            background: #ecf0f1;
+            color: #7f8c8d;
+            flex-shrink: 0;
+            margin-left: auto;
+        }
+        .permiso-item .categoria-badge.ubicacion { background: #d5f5e3; color: #27ae60; }
+        .permiso-item .categoria-badge.almacenamiento { background: #fdebd0; color: #e67e22; }
+        .permiso-item .categoria-badge.camara { background: #fadbd8; color: #c0392b; }
+        .permiso-item .categoria-badge.microfono { background: #e8daef; color: #8e44ad; }
+        .permiso-item .categoria-badge.contactos { background: #d6eaf8; color: #2980b9; }
+        .permiso-item .categoria-badge.telefono { background: #d4efdf; color: #1abc9c; }
+        .permiso-item .categoria-badge.sms { background: #f5cba7; color: #d35400; }
+        .permiso-item .categoria-badge.bluetooth { background: #aed6f1; color: #2471a3; }
+        .permiso-item .categoria-badge.red { background: #d5dbdb; color: #5d6d7e; }
+        .permiso-item .categoria-badge.servicios { background: #f9e79f; color: #b7950b; }
+        .permiso-item .categoria-badge.notificaciones { background: #f5b7b1; color: #943126; }
+        .permiso-item .categoria-badge.sensores { background: #d2b4de; color: #6c3483; }
+        .permiso-item .categoria-badge.calendario { background: #a9dfbf; color: #1a7a3a; }
+        .permiso-item .categoria-badge.otros { background: #eaeded; color: #7f8c8d; }
+        
+        .permiso-item.detectado {
+            background: #d5f5e3 !important;
+            border-left: 3px solid #27ae60;
+        }
+        .permiso-item.detectado label { color: #1a7a3a; font-weight: 600; }
+
+        .acciones-permisos {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 8px 0;
+        }
+        .acciones-permisos button {
+            padding: 4px 12px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            background: white;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .acciones-permisos button:hover { background: #ecf0f1; }
+        .acciones-permisos .btn-seleccionar-todos { border-color: #27ae60; color: #27ae60; }
+        .acciones-permisos .btn-seleccionar-todos:hover { background: #d5f5e3; }
+        .acciones-permisos .btn-deseleccionar-todos { border-color: #e74c3c; color: #e74c3c; }
+        .acciones-permisos .btn-deseleccionar-todos:hover { background: #fadbd8; }
+        .acciones-permisos .btn-seleccionar-detectados { border-color: #3498db; color: #3498db; }
+        .acciones-permisos .btn-seleccionar-detectados:hover { background: #d6eaf8; }
+
+        .filtro-permisos {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .filtro-permisos button {
+            padding: 2px 10px;
+            border: 1px solid #bdc3c7;
+            border-radius: 12px;
+            background: white;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .filtro-permisos button:hover { background: #ecf0f1; }
+        .filtro-permisos button.active { background: #3498db; color: white; border-color: #3498db; }
+
+        #btn-compile {
+            width: 100%;
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: white;
+            border: none;
+            padding: 14px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.3s;
+        }
+        #btn-compile:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(46,204,113,0.3); }
+        #btn-compile:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        #console-log {
+            margin-top: 15px;
+            background: #2c3e50;
+            color: #ecf0f1;
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: left;
+            height: 150px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            display: none;
+        }
+        .success-box { background: #27ae60 !important; color: white !important; font-weight: bold; text-align: center; }
+        .error-box { background: #e74c3c !important; color: white !important; }
+
+        .analisis-resultado {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin: 10px 0;
+            border: 1px solid #ecf0f1;
+        }
+        .analisis-resultado .titulo {
+            font-size: 13px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .analisis-resultado .detalles {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 4px;
+        }
+        .analisis-resultado .detalles span {
+            display: inline-block;
+            background: #ecf0f1;
+            padding: 1px 8px;
+            border-radius: 12px;
+            margin: 2px 3px;
+            font-size: 11px;
+        }
+
+        @media (max-width: 600px) {
+            .permisos-grid { grid-template-columns: 1fr; max-height: 200px; }
+            .container { padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📱 Compilador HTML a APK</h2>
+    <p class="subtitle">Sube tu HTML, analiza permisos automáticamente y compila tu APK</p>
+    
+    <div class="input-group">
+        <label for="app-name">Nombre de la Aplicación:</label>
+        <input type="text" id="app-name" placeholder="Ej: MiApp" value="MiAppHTML">
+    </div>
+
+    <div class="input-group">
+        <label for="app-icon">Icono de la Aplicación (PNG/JPG recomendado):</label>
+        <input type="file" id="app-icon" accept="image/png, image/jpeg">
+    </div>
+
+    <div id="drop-zone">
+        <p id="drop-text">📁 Arrastra y suelta tu index.html aquí o haz clic para seleccionarlo</p>
+        <input type="file" id="file-html" accept=".html" style="display: none;">
+    </div>
+
+    <div id="analisis-resultado" class="analisis-resultado" style="display:none;">
+        <div class="titulo">🔍 Análisis de Permisos</div>
+        <div class="detalles" id="analisis-detalles">
+            <span id="analisis-count">0</span> permisos detectados automáticamente
+        </div>
+    </div>
+
+    <div class="permisos-section">
+        <div class="header">
+            <h3>🔐 Permisos de la App</h3>
+            <span class="contador" id="permisos-contador">0 seleccionados</span>
+        </div>
+        
+        <div class="acciones-permisos">
+            <button class="btn-seleccionar-todos" onclick="seleccionarTodos(true)">✅ Seleccionar todos</button>
+            <button class="btn-deseleccionar-todos" onclick="seleccionarTodos(false)">❌ Deseleccionar todos</button>
+            <button class="btn-seleccionar-detectados" onclick="seleccionarDetectados()">🔍 Solo detectados</button>
+        </div>
+        
+        <div class="filtro-permisos" id="filtro-permisos">
+            <button class="active" data-filtro="todos" onclick="filtrarPermisos('todos')">Todos</button>
+            <button data-filtro="Red" onclick="filtrarPermisos('Red')">🌐 Red</button>
+            <button data-filtro="Ubicación" onclick="filtrarPermisos('Ubicación')">📍 Ubicación</button>
+            <button data-filtro="Almacenamiento" onclick="filtrarPermisos('Almacenamiento')">💾 Almacenamiento</button>
+            <button data-filtro="Cámara" onclick="filtrarPermisos('Cámara')">📷 Cámara</button>
+            <button data-filtro="Micrófono/Audio" onclick="filtrarPermisos('Micrófono/Audio')">🎤 Micrófono</button>
+            <button data-filtro="Bluetooth" onclick="filtrarPermisos('Bluetooth')">📶 Bluetooth</button>
+            <button data-filtro="Teléfono" onclick="filtrarPermisos('Teléfono')">📞 Teléfono</button>
+            <button data-filtro="SMS" onclick="filtrarPermisos('SMS')">💬 SMS</button>
+            <button data-filtro="Sensores" onclick="filtrarPermisos('Sensores')">📊 Sensores</button>
+            <button data-filtro="Servicios" onclick="filtrarPermisos('Servicios')">⚙️ Servicios</button>
+            <button data-filtro="Otros" onclick="filtrarPermisos('Otros')">📦 Otros</button>
+        </div>
+        
+        <div class="permisos-grid" id="permisos-grid">
+            <div style="text-align:center;padding:20px;color:#7f8c8d;grid-column:1/-1;">
+                ⏳ Cargando lista de permisos...
+            </div>
+        </div>
+    </div>
+    
+    <button id="btn-compile">🚀 Compilar APK</button>
+    
+    <div id="console-log"></div>
+</div>
+
+<script>
+    const dropZone = document.getElementById('drop-zone');
+    const dropText = document.getElementById('drop-text');
+    const fileHtmlInput = document.getElementById('file-html');
+    const appIconInput = document.getElementById('app-icon');
+    const appNameInput = document.getElementById('app-name');
+    const btnCompile = document.getElementById('btn-compile');
+    const consoleLog = document.getElementById('console-log');
+    const permisosGrid = document.getElementById('permisos-grid');
+    const permisosContador = document.getElementById('permisos-contador');
+    const analisisResultado = document.getElementById('analisis-resultado');
+    const analisisDetalles = document.getElementById('analisis-detalles');
+    const analisisCount = document.getElementById('analisis-count');
+
+    let selectedHtmlFile = null;
+    let todosPermisos = [];
+    let filtroActual = 'todos';
+    let permisosDetectados = [];
+
+    async function cargarPermisos() {
+        try {
+            const response = await fetch('/api/permisos');
+            const data = await response.json();
+            if (data.ok) {
+                todosPermisos = data.permisos;
+                renderizarPermisos();
+            }
+        } catch (e) {
+            console.error('Error cargando permisos:', e);
+            permisosGrid.innerHTML = '<div style="text-align:center;padding:20px;color:#e74c3c;grid-column:1/-1;">❌ Error al cargar permisos</div>';
+        }
+    }
+
+    function renderizarPermisos() {
+        let html = '';
+        let seleccionados = 0;
+        
+        const filtrados = filtroActual === 'todos' 
+            ? todosPermisos 
+            : todosPermisos.filter(p => p.categoria === filtroActual);
+        
+        for (const permiso of filtrados) {
+            if (permiso.seleccionado) seleccionados++;
+            const categoriaClass = permiso.categoria.toLowerCase().replace(/[^a-z]/g, '');
+            const esDetectado = permiso.detectado || false;
+            const claseDetectado = esDetectado ? 'detectado' : '';
+            
+            html += `
+                <div class="permiso-item ${claseDetectado}" onclick="togglePermiso('${permiso.id}')">
+                    <input type="checkbox" id="perm_${permiso.id}" ${permiso.seleccionado ? 'checked' : ''} 
+                           onclick="event.stopPropagation(); togglePermiso('${permiso.id}')">
+                    <label for="perm_${permiso.id}" title="${permiso.permiso}">${permiso.nombre}</label>
+                    <span class="categoria-badge ${categoriaClass}">${permiso.categoria}</span>
+                </div>
+            `;
+        }
+        
+        if (filtrados.length === 0) {
+            html = '<div style="text-align:center;padding:20px;color:#7f8c8d;grid-column:1/-1;">No hay permisos en esta categoría</div>';
+        }
+        
+        permisosGrid.innerHTML = html;
+        permisosContador.textContent = `${seleccionados} seleccionados`;
+    }
+
+    function togglePermiso(id) {
+        const permiso = todosPermisos.find(p => p.id === id);
+        if (permiso) {
+            permiso.seleccionado = !permiso.seleccionado;
+            renderizarPermisos();
+        }
+    }
+
+    function seleccionarTodos(estado) {
+        for (const p of todosPermisos) {
+            p.seleccionado = estado;
+        }
+        renderizarPermisos();
+    }
+
+    function seleccionarDetectados() {
+        for (const p of todosPermisos) {
+            p.seleccionado = p.detectado || false;
+        }
+        renderizarPermisos();
+    }
+
+    function filtrarPermisos(categoria) {
+        filtroActual = categoria;
+        document.querySelectorAll('.filtro-permisos button').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filtro === categoria);
+        });
+        renderizarPermisos();
+    }
+
+    async function analizarHTML(htmlContent) {
+        try {
+            const response = await fetch('/api/analizar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ html: htmlContent })
+            });
+            const data = await response.json();
+            
+            if (data.ok) {
+                for (const perm of data.permisos) {
+                    const existente = todosPermisos.find(p => p.id === perm.id);
+                    if (existente) {
+                        existente.detectado = perm.detectado;
+                        existente.seleccionado = perm.seleccionado;
+                    }
+                }
+                permisosDetectados = data.detectados || [];
+                
+                analisisResultado.style.display = 'block';
+                analisisCount.textContent = data.total_detectados || 0;
+                
+                let tagsHtml = '';
+                if (permisosDetectados.length > 0) {
+                    for (const p of permisosDetectados) {
+                        tagsHtml += `<span>✅ ${p}</span>`;
+                    }
+                } else {
+                    tagsHtml = '<span style="color:#7f8c8d;">No se detectaron permisos específicos</span>';
+                }
+                analisisDetalles.innerHTML = `
+                    <span id="analisis-count">${data.total_detectados || 0}</span> permisos detectados automáticamente
+                    <br>${tagsHtml}
+                `;
+                
+                renderizarPermisos();
+            }
+        } catch (e) {
+            console.error('Error analizando HTML:', e);
+        }
+    }
+
+    dropZone.addEventListener('click', () => fileHtmlInput.click());
+    fileHtmlInput.addEventListener('change', (e) => {
+        if(e.target.files.length > 0) handleHtmlSelect(e.target.files[0]);
+    });
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); }, false);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.add('hover'), false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.remove('hover'), false);
+    });
+
+    dropZone.addEventListener('drop', e => {
+        const files = e.dataTransfer.files;
+        if (files.length > 0) handleHtmlSelect(files[0]);
+    });
+
+    function handleHtmlSelect(file) {
+        if (!file.name.endsWith('.html')) {
+            alert('❌ Error: Solo se admiten archivos .html');
+            return;
+        }
+        selectedHtmlFile = file;
+        dropText.innerText = `✅ Archivo cargado: ${file.name}`;
+        dropText.style.color = '#27ae60';
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const htmlContent = e.target.result;
+            analizarHTML(htmlContent);
+        };
+        reader.readAsText(file);
+    }
+
+    btnCompile.addEventListener('click', () => {
+        const appName = appNameInput.value.trim();
+        if (!appName) { return alert('❌ Ingresa un nombre para la aplicación.'); }
+        if (!selectedHtmlFile) { return alert('❌ Selecciona o arrastra un archivo HTML primero.'); }
+        
+        const permisosSeleccionados = todosPermisos.filter(p => p.seleccionado).map(p => p.id);
+        if (permisosSeleccionados.length === 0) {
+            if (!confirm('⚠️ No has seleccionado ningún permiso. ¿Continuar?')) return;
+        }
+
+        consoleLog.style.display = "block";
+        consoleLog.className = "";
+        consoleLog.innerText = "📖 Leyendo archivos...\n";
+
+        const htmlReader = new FileReader();
+        htmlReader.onload = function(htmlEvt) {
+            const htmlContent = htmlEvt.target.result;
+
+            if (appIconInput.files.length > 0) {
+                const iconReader = new FileReader();
+                iconReader.onload = function(iconEvt) {
+                    const iconBase64 = iconEvt.target.result.split(',')[1];
+                    sendDataToServer(htmlContent, appName, iconBase64, permisosSeleccionados);
+                };
+                iconReader.readAsDataURL(appIconInput.files[0]);
+            } else {
+                sendDataToServer(htmlContent, appName, null, permisosSeleccionados);
+            }
+        };
+        htmlReader.readAsText(selectedHtmlFile, 'UTF-8');
+    });
+
+    function sendDataToServer(htmlContent, appName, iconBase64, permisos) {
+        fetch('/prepare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                content: htmlContent,
+                appName: appName,
+                iconBase64: iconBase64,
+                permissions: permisos
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                btnCompile.disabled = true;
+                btnCompile.textContent = '⏳ Compilando...';
+                
+                const eventSource = new EventSource('/stream-compile');
+                
+                eventSource.onmessage = function(event) {
+                    const message = event.data;
+                    if (message.startsWith("SUCCESS:")) {
+                        consoleLog.className = "success-box";
+                        consoleLog.innerText = message.replace("SUCCESS:", "");
+                        eventSource.close();
+                        btnCompile.disabled = false;
+                        btnCompile.textContent = '🚀 Compilar APK';
+                    } else if (message.startsWith("ERROR:")) {
+                        consoleLog.className = "error-box";
+                        consoleLog.innerText = message;
+                        eventSource.close();
+                        btnCompile.disabled = false;
+                        btnCompile.textContent = '🚀 Compilar APK';
+                    } else {
+                        consoleLog.innerText += message + "\n";
+                        consoleLog.scrollTop = consoleLog.scrollHeight;
+                    }
+                };
+                eventSource.onerror = () => {
+                    eventSource.close();
+                    btnCompile.disabled = false;
+                    btnCompile.textContent = '🚀 Compilar APK';
+                };
+            }
+        })
+        .catch(err => {
+            consoleLog.className = "error-box";
+            consoleLog.innerText = "❌ Error: " + err.message;
+            btnCompile.disabled = false;
+            btnCompile.textContent = '🚀 Compilar APK';
+        });
+    }
+
+    cargarPermisos();
+</script>
+</body>
+</html>
